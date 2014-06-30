@@ -1,0 +1,3 @@
+package evelyn
+
+object Quit

@@ -1,0 +1,3 @@
+GET		/demo				controllers.Main.demo
+
+GET		/assets/*file		controllers.Assets.at(path="/public", file)
