@@ -7,12 +7,14 @@
 		<title>@title</title>
 		<link rel="stylesheet" media="screen" href="@routes.Assets.at("stylesheets/main.css")">
 		<link rel="shortcut icon" type="image/png" href="@routes.Assets.at("images/favicon.png")">
+		<script src="http://cdn.jsdelivr.net/jquery/2.1.1/jquery.js" type="text/javascript"></script>
 	</head>
 	<body>
 		@content
 
 		<!-- for production (play dist), use the optimized version instead -->
 		<!-- <script src="@routes.Assets.at("javascripts/scalajs-example-opt.js")" type="text/javascript"></script> -->
+		<!-- <script src="@routes.Assets.at("javascripts/client-jsdeps.js")" type="text/javascript""></script>-->
 		<script src="@routes.Assets.at("javascripts/client-fastopt.js")" type="text/javascript"></script>
 		<script src="@routes.Assets.at("javascripts/client-launcher.js")" type="text/javascript"></script>
 	</body>
