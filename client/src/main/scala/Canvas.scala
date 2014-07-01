@@ -16,7 +16,42 @@ object Canvas extends JSApp {
 	def main: Unit = {
 		var canvas = document.getElementById("board").asInstanceOf[HTMLCanvasElement]
 		implicit var context = canvas.getContext("2d")
+		val (arrow, orientation, startCoords, targetCoords) = initializeBoard
+	}
 
+
+	def initializeBoard (implicit context: CanvasRenderingContext2D): (Image, Orientation, (Int, Int), (Int, Int)) = {
+
+		val orientation = Orientation(Math.round(Math.random * 3).toInt)
+		println(s"orientation: $orientation")
+
+		val target = Math.round(Math.random * 90)
+		val targetx = (Math.round(target / 10) * 70).toInt + 70
+		val targety = (Math.round(target % 10) * 70).toInt + 70
+		val targetCoords = (targetx / 70, targety / 70)
+		println(s"target x=${targetCoords._1} y=${targetCoords._2}")
+
+		val startCoords = chooseArrow(targetCoords)
+		println(s"start x=${startCoords._1} y=${startCoords._2}")
+
+		val arrow = new Image
+		arrow.src = "assets/images/arrow.png"
+		arrow.onload = () => { drawBoard(arrow, orientation, startCoords, targetCoords) }
+		(arrow, orientation, startCoords, targetCoords)
+	}
+
+	def chooseArrow (targetCoords: (Int, Int)): (Int, Int) = {
+		val start = Math.round(Math.random * 90)
+		val startx = (Math.round(start / 10) * 70).toInt + 70
+		val starty = (Math.round(start % 10) * 70).toInt + 70
+		val startCoords = (startx / 70, starty / 70)
+		if (startCoords == targetCoords) {
+			println(s"oops, target and arrow overlap, rechoosing")
+			return chooseArrow(targetCoords)
+		} else return startCoords
+	}
+
+	def drawBoard (arrow: Image, orientation: Orientation, arrowCoords: (Int, Int), targetCoords: (Int, Int))(implicit context: CanvasRenderingContext2D): Unit = {
 		val p = 50
 
 		context.save()
@@ -32,27 +67,8 @@ object Canvas extends JSApp {
 		}
 		context.stroke()
 		context.restore()
-
-		val start = Math.round(Math.random * 90)
-		val target = Math.round(Math.random * 90)
-		val orientation = Orientation(Math.round(Math.random * 3).toInt)
-		println(s"orientation: $orientation")
-
-		val startx = (Math.round(start / 10) * 70).toInt + 70
-		val starty = (Math.round(start % 10) * 70).toInt + 70
-		val startCoords = (startx / 70, starty / 70)
-		println(s"start x=${startCoords._1} y=${startCoords._2}")
-
-		val targetx = (Math.round(target / 10) * 70).toInt + 70
-		val targety = (Math.round(target % 10) * 70).toInt + 70
-		val targetCoords = (targetx / 70, targety / 70)
-		println(s"target x=${targetCoords._1} y=${targetCoords._2}")
-
-		drawTarget(targetx, targety)
-
-		val arrow = new Image
-		arrow.onload = () => { drawArrow(startx, starty, arrow, orientation) }
-		arrow.src = "assets/images/arrow.png"
+		drawTarget(targetCoords._1 * 70, targetCoords._2 * 70)
+		drawArrow(arrowCoords._1 * 70, arrowCoords._2 * 70, arrow, orientation)
 	}
 
 	def drawTarget (x: Int, y: Int)(implicit context: CanvasRenderingContext2D) = {
