@@ -1,3 +1,1 @@
 package evelyn
-
-object Quit
