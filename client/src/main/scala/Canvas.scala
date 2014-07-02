@@ -14,27 +14,75 @@ object Canvas extends JSApp {
 	}
 	import Orientation._
 
-	def main: Unit = {
-		var canvas = document.getElementById("board").asInstanceOf[HTMLCanvasElement]
-		implicit var c = canvas.getContext("2d")
+	case class State (arrow: Image, orientation: Orientation, arrowCoords: (Int, Int), targetCoords: (Int, Int))
 
-		val (arrow, orientation, startCoords, targetCoords) = initializeBoard
+	def main: Unit = {
+		val canvas = document.getElementById("board").asInstanceOf[HTMLCanvasElement]
+		implicit val c = canvas.getContext("2d")
+
+		val state = initializeBoard
 
 		val button = jQuery("#submit")
 		val textarea = jQuery("#script")
 
-		def handler = () => { runScript(textarea, arrow, orientation, startCoords, targetCoords) }
-
-		button.click { handler _ }
+		button.click { () => runScript(textarea.value.toString.lines.toList, state) }
 	}
 
-	def runScript (textarea: JQuery, arrow: Image, orientation: Orientation, startCoords: (Int, Int), targetCoords: (Int, Int))(implicit c: CanvasRenderingContext2D) = {
-		val script = textarea.text
-		println(s"script $script")
+	def runScript (lines: List[String], state: State)(implicit c: CanvasRenderingContext2D): Unit = {
+		dom.setTimeout(() => runScriptAfterPause(lines, state), 1000)
 	}
 
+	def runScriptAfterPause (lines: List[String], state: State)(implicit c: CanvasRenderingContext2D): Unit = lines match {
 
-	def initializeBoard (implicit c: CanvasRenderingContext2D): (Image, Orientation, (Int, Int), (Int, Int)) = {
+		case Nil =>
+			dom.alert("Try again!")
+			initializeBoard
+
+		case x :: xs =>
+			val (orientation, arrowCoords) = lines.head match {
+				case "clockwise" =>
+					val orientation = state.orientation match {
+						case North => East
+						case East => South
+						case South => West
+						case West => North
+					}
+					(orientation, state.arrowCoords)
+
+				case "counter-clockwise" =>
+					val orientation = state.orientation match {
+						case North => West
+						case West => South
+						case South => East
+						case East => North
+					}
+					(orientation, state.arrowCoords)
+
+				case "forward" =>
+					val arrowCoords = state.orientation match {
+						case North => (state.arrowCoords._1, Math.max(state.arrowCoords._2 - 1, 0))
+						case East => (Math.min(state.arrowCoords._1 + 1, 10), state.arrowCoords._2)
+						case South => (state.arrowCoords._1, Math.min(state.arrowCoords._2 + 1, 10))
+						case West => (Math.max(state.arrowCoords._1 - 1, 0), state.arrowCoords._2)
+					}
+					(state.orientation, arrowCoords)
+			}
+
+			val next = State(state.arrow, orientation, arrowCoords, state.targetCoords)
+
+			drawBoard(next)
+
+			if (arrowCoords == next.targetCoords) {
+				dom.alert("You win!")
+				initializeBoard
+			} else runScript(xs, next)
+	}
+
+	def initializeBoard (implicit c: CanvasRenderingContext2D): State = {
+
+		c.save()
+		c.clearRect(0, 0, 800, 800)
+		c.restore()
 
 		val orientation = Orientation(Math.round(Math.random * 3).toInt)
 		println(s"orientation: $orientation")
@@ -49,9 +97,10 @@ object Canvas extends JSApp {
 		println(s"start x=${startCoords._1} y=${startCoords._2}")
 
 		val arrow = new Image
+		val state = State(arrow, orientation, startCoords, targetCoords)
 		arrow.src = "assets/images/arrow.png"
-		arrow.onload = () => { drawBoard(arrow, orientation, startCoords, targetCoords) }
-		(arrow, orientation, startCoords, targetCoords)
+		arrow.onload = () => { drawBoard(state) }
+		state
 	}
 
 	def chooseArrow (targetCoords: (Int, Int)): (Int, Int) = {
@@ -65,8 +114,12 @@ object Canvas extends JSApp {
 		} else return startCoords
 	}
 
-	def drawBoard (arrow: Image, orientation: Orientation, arrowCoords: (Int, Int), targetCoords: (Int, Int))(implicit c: CanvasRenderingContext2D): Unit = {
+	def drawBoard (state: State)(implicit c: CanvasRenderingContext2D): Unit = {
 		val p = 50
+
+		c.save()
+		c.clearRect(0, 0, 800, 800)
+		c.restore()
 
 		c.save()
 		c.beginPath()
@@ -81,8 +134,8 @@ object Canvas extends JSApp {
 		}
 		c.stroke()
 		c.restore()
-		drawTarget(targetCoords._1 * 70, targetCoords._2 * 70)
-		drawArrow(arrowCoords._1 * 70, arrowCoords._2 * 70, arrow, orientation)
+		drawTarget(state.targetCoords._1 * 70, state.targetCoords._2 * 70)
+		drawArrow(state.arrowCoords._1 * 70, state.arrowCoords._2 * 70, state.arrow, state.orientation)
 	}
 
 	def drawTarget (x: Int, y: Int)(implicit c: CanvasRenderingContext2D) = {
@@ -134,6 +187,7 @@ trait CanvasRenderingContext2D extends js.Object {
 	def strokeRect (x: Double, y: Double, w: Double, h: Double): Unit
 	def beginPath (): Unit
 	def restore (): Unit
+	def clearRect (x: Int, y: Int, h: Int, w: Int): Unit
 	def save (): Unit
 	def fill (): Unit
 	def stroke (): Unit
