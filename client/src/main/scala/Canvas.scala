@@ -15,28 +15,47 @@ object Canvas extends JSApp {
 	import Orientation._
 
 	case class State (arrow: Image, orientation: Orientation, arrowCoords: (Int, Int), targetCoords: (Int, Int))
+	case class Context (button: JQuery, textarea: JQuery, sound: Audio, c: CanvasRenderingContext2D)
 
 	def main: Unit = {
 		val canvas = document.getElementById("board").asInstanceOf[HTMLCanvasElement]
-		implicit val c = canvas.getContext("2d")
+		val button = jQuery("#submit")
+		val textarea = jQuery("#script")
+		val sound = document.getElementById("sound").asInstanceOf[Audio]
+
+		implicit val c = Context(button, textarea, sound, canvas.getContext("2d"))
 
 		val state = initializeBoard
 
-		val button = jQuery("#submit")
-		val textarea = jQuery("#script")
-
-		button.click { () => runScript(textarea.value.toString.lines.toList, state) }
+		button.click { () => runScriptAfterPause(c.textarea.value.toString.lines.toList, state) }
 	}
 
-	def runScript (lines: List[String], state: State)(implicit c: CanvasRenderingContext2D): Unit = {
-		dom.setTimeout(() => runScriptAfterPause(lines, state), 1000)
+	def againAfterPause (implicit c: Context): Unit = {
+		println(s"clearing board for new game")
+		clearBoard
+		dom.setTimeout(() => again, 1000)
 	}
 
-	def runScriptAfterPause (lines: List[String], state: State)(implicit c: CanvasRenderingContext2D): Unit = lines match {
+	def again (implicit c: Context): Unit = {
+		println(s"playing again")
+		val state = initializeBoard
+		c.textarea.value("")
+		c.button.click { () => runScriptAfterPause(c.textarea.value.toString.lines.toList, state) }
+	}
+
+	def runScriptAfterPause (lines: List[String], state: State)(implicit c: Context): Unit = {
+		c.button.off("click")
+		dom.setTimeout(() => runScript(lines, state), 1000)
+	}
+
+	def runScript (lines: List[String], state: State)(implicit c: Context): Unit = lines match {
 
 		case Nil =>
-			dom.alert("Try again!")
-			initializeBoard
+			if (state.arrowCoords == state.targetCoords) {
+				c.sound.play
+				dom.alert("You win!")
+			} else dom.alert("Try again!")
+			againAfterPause
 
 		case x :: xs =>
 			val (orientation, arrowCoords) = lines.head match {
@@ -72,18 +91,10 @@ object Canvas extends JSApp {
 
 			drawBoard(next)
 
-			if (arrowCoords == next.targetCoords) {
-				dom.alert("You win!")
-				initializeBoard
-			} else runScript(xs, next)
+			runScriptAfterPause(xs, next)
 	}
 
-	def initializeBoard (implicit c: CanvasRenderingContext2D): State = {
-
-		c.save()
-		c.clearRect(0, 0, 800, 800)
-		c.restore()
-
+	def initializeBoard (implicit c: Context): State = {
 		val orientation = Orientation(Math.round(Math.random * 3).toInt)
 		println(s"orientation: $orientation")
 
@@ -114,55 +125,58 @@ object Canvas extends JSApp {
 		} else return startCoords
 	}
 
-	def drawBoard (state: State)(implicit c: CanvasRenderingContext2D): Unit = {
+	def clearBoard (implicit c: Context): Unit = {
+		c.c.save()
+		c.c.clearRect(0, 0, 800, 800)
+		c.c.restore()
+	}
+
+	def drawBoard (state: State)(implicit c: Context): Unit = {
+		clearBoard
+
 		val p = 50
-
-		c.save()
-		c.clearRect(0, 0, 800, 800)
-		c.restore()
-
-		c.save()
-		c.beginPath()
-		c.strokeStyle = "black"
+		c.c.save()
+		c.c.beginPath()
+		c.c.strokeStyle = "black"
 		for (i <- 0 to 700 by 70) {
-			c.moveTo(i + p, p)
-			c.lineTo(i + p, p + 700)
+			c.c.moveTo(i + p, p)
+			c.c.lineTo(i + p, p + 700)
 		}
 		for (i <- 0 to 700 by 70) {
-			c.moveTo(p, i + p)
-			c.lineTo(p + 700, i + p)
+			c.c.moveTo(p, i + p)
+			c.c.lineTo(p + 700, i + p)
 		}
-		c.stroke()
-		c.restore()
+		c.c.stroke()
+		c.c.restore()
 		drawTarget(state.targetCoords._1 * 70, state.targetCoords._2 * 70)
 		drawArrow(state.arrowCoords._1 * 70, state.arrowCoords._2 * 70, state.arrow, state.orientation)
 	}
 
-	def drawTarget (x: Int, y: Int)(implicit c: CanvasRenderingContext2D) = {
-		c.save()
-		c.beginPath()
-		c.rect(x - 20, y - 20, 70, 70)
-		c.fill()
-		c.restore()
+	def drawTarget (x: Int, y: Int)(implicit c: Context) = {
+		c.c.save()
+		c.c.beginPath()
+		c.c.rect(x - 20, y - 20, 70, 70)
+		c.c.fill()
+		c.c.restore()
 	}
 
-	def drawArrow (x: Int, y: Int, arrow: Image, orientation: Orientation)(implicit c: CanvasRenderingContext2D) = {
-		c.save()
-		c.beginPath()
-		c.translate(x + 15, y + 15);
+	def drawArrow (x: Int, y: Int, arrow: Image, orientation: Orientation)(implicit c: Context) = {
+		c.c.save()
+		c.c.beginPath()
+		c.c.translate(x + 15, y + 15);
 		val degrees = orientation match {
 			case North => 0
 			case East => 90
 			case South => 180
 			case West => 270
 		}
-		drawRotated(degrees, () => { c.drawImage(arrow, -30, -30, 60, 60) } )
-		c.restore()
+		drawRotated(degrees, () => { c.c.drawImage(arrow, -30, -30, 60, 60) } )
+		c.c.restore()
 	}
 
-	def drawRotated (degrees: Int, f: () => Unit)(implicit c: CanvasRenderingContext2D) = {
-		println(s"drawing at $degrees degrees")
-		c.rotate(degrees * Math.PI / 180)
+	def drawRotated (degrees: Int, f: () => Unit)(implicit c: Context) = {
+		//println(s"drawing at $degrees degrees")
+		c.c.rotate(degrees * Math.PI / 180)
 		f()
 	}
 }
@@ -174,6 +188,10 @@ class Image extends js.Object {
 
 trait HTMLCanvasElement extends js.Object {
 	def getContext (kind: String): CanvasRenderingContext2D
+}
+
+trait Audio extends js.Object {
+	def play (): Unit
 }
 
 trait CanvasRenderingContext2D extends js.Object {
