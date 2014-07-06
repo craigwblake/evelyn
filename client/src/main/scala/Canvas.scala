@@ -1,18 +1,18 @@
 package evelyn
 
+import Orientation._
 import org.scalajs.dom
 import org.scalajs.dom.document
 import org.scalajs.jquery._
 import scala.scalajs.js
 import scala.scalajs.js._
+import scala.concurrent.Future
+import scala.concurrent.Future._
+//import scala.concurrent.ExecutionContext.Implicits.global
+import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
+import scala.util._
 
 object Canvas extends JSApp {
-
-	object Orientation extends Enumeration {
-		type Orientation = Value
-		val North, South, East, West = Value
-	}
-	import Orientation._
 
 	case class State (arrow: Image, orientation: Orientation, arrowCoords: (Int, Int), targetCoords: (Int, Int))
 	case class Context (button: JQuery, textarea: JQuery, sound: Audio, c: CanvasRenderingContext2D)
@@ -27,38 +27,58 @@ object Canvas extends JSApp {
 
 		val state = initializeBoard
 
-		button.click { () => runScriptAfterPause(c.textarea.value.toString.lines.toList, state) }
+		afterClick(c.button, state).flatMap(runScriptToCompletion(_))
 	}
 
-	def againAfterPause (implicit c: Context): Unit = {
-		println(s"clearing board for new game")
-		clearBoard
-		dom.setTimeout(() => again, 1000)
-	}
-
-	def again (implicit c: Context): Unit = {
-		println(s"playing again")
-		val state = initializeBoard
-		c.textarea.value("")
-		c.button.click { () => runScriptAfterPause(c.textarea.value.toString.lines.toList, state) }
-	}
-
-	def runScriptAfterPause (lines: List[String], state: State)(implicit c: Context): Unit = {
-		c.button.off("click")
-		dom.setTimeout(() => runScript(lines, state), 1000)
-	}
-
-	def runScript (lines: List[String], state: State)(implicit c: Context): Unit = lines match {
-
-		case Nil =>
+	def runScriptToCompletion (state: State)(implicit c: Context): Future[State] = {
+		println(s"runScriptToCompletion")
+		def complete (state: State): Future[State] = {
 			if (state.arrowCoords == state.targetCoords) {
 				c.sound.play
 				dom.alert("You win!")
 			} else dom.alert("Try again!")
-			againAfterPause
+
+			println(s"clearing board for new game")
+			clearBoard
+			delay(state).flatMap(_ => again)
+		}
+
+		delay(state).flatMap(runScript(c.textarea.value.toString.lines.toList, _)).flatMap(complete(_))
+	}
+
+	def again (implicit c: Context): Future[State] = {
+		println(s"playing again")
+		val state = initializeBoard
+		c.textarea.value("")
+		c.textarea.focus()
+		c.button.off("click")
+
+		afterClick(c.button, state).flatMap(runScriptToCompletion(_))
+	}
+
+	def runLine (line: String, state: State)(implicit c: Context): Future[State] = runScript(line :: Nil, state)
+
+	def runScript (lines: List[String], state: State)(implicit c: Context): Future[State] = lines match {
+
+		case Nil =>
+			successful(state)
 
 		case x :: xs =>
-			val (orientation, arrowCoords) = lines.head match {
+			println(s"executing: $x")
+			lines.head.trim match {
+
+				case "" =>
+					runScript(xs, state)
+
+				case r"(\d+)$number times {" =>
+					val iterations = number.toInt
+					val block = lines.drop(1).takeWhile(_ != "}")
+					val rest = lines.drop(block.size + 2)
+
+					val unrolled = (1 to iterations).foldLeft(List.empty[String]) { (x: List[String], y: Int) => x ++ block}
+					val computation = unrolled.foldLeft(successful(state)) { (x: Future[State], y: String) => x.flatMap(runLine(y, _)) }
+					computation.flatMap(runScript(rest, _))
+
 				case "clockwise" =>
 					val orientation = state.orientation match {
 						case North => East
@@ -66,7 +86,9 @@ object Canvas extends JSApp {
 						case South => West
 						case West => North
 					}
-					(orientation, state.arrowCoords)
+					val next = State(state.arrow, orientation, state.arrowCoords, state.targetCoords)
+					drawBoard(next)
+					delay(next).flatMap(runScript(xs, _))
 
 				case "counter-clockwise" =>
 					val orientation = state.orientation match {
@@ -75,7 +97,9 @@ object Canvas extends JSApp {
 						case South => East
 						case East => North
 					}
-					(orientation, state.arrowCoords)
+					val next = State(state.arrow, orientation, state.arrowCoords, state.targetCoords)
+					drawBoard(next)
+					delay(next).flatMap(runScript(xs, _))
 
 				case "forward" =>
 					val arrowCoords = state.orientation match {
@@ -84,14 +108,10 @@ object Canvas extends JSApp {
 						case South => (state.arrowCoords._1, Math.min(state.arrowCoords._2 + 1, 10))
 						case West => (Math.max(state.arrowCoords._1 - 1, 0), state.arrowCoords._2)
 					}
-					(state.orientation, arrowCoords)
+					val next = State(state.arrow, state.orientation, arrowCoords, state.targetCoords)
+					drawBoard(next)
+					delay(next).flatMap(runScript(xs, _))
 			}
-
-			val next = State(state.arrow, orientation, arrowCoords, state.targetCoords)
-
-			drawBoard(next)
-
-			runScriptAfterPause(xs, next)
 	}
 
 	def initializeBoard (implicit c: Context): State = {

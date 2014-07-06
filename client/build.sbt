@@ -8,6 +8,8 @@ ScalaJSKeys.persistLauncher in Test := false
 
 skip in ScalaJSKeys.packageJSDependencies := false
 
+libraryDependencies += "org.scala-lang.modules" %% "scala-async" % "0.9.1"
+
 libraryDependencies += "org.webjars" % "jquery" % "2.1.1"
 
 libraryDependencies += "org.scala-lang.modules.scalajs" %%% "scalajs-jquery" % "0.6"
