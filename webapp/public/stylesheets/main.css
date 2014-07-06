@@ -1,0 +1,11 @@
+.button {
+    background-color: #668B8B;
+    color: #000000;
+    float: left;
+    padding: 10px;
+    border-radius: 10px;
+    -moz-border-radius: 10px;
+    -webkit-border-radius: 10px;
+    width: 180px;
+    height: 80px;
+}`
