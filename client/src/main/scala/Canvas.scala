@@ -110,8 +110,15 @@ object Canvas extends JSApp {
 					}
 					val next = State(state.arrow, state.orientation, arrowCoords, state.targetCoords, state.obstacle)
 					drawBoard(next)
-					delay(next).flatMap(runScript(xs, _))
+					if (intersect(next.arrowCoords, next.obstacle)) delay(next).flatMap(runScript(Nil, _))
+					else delay(next).flatMap(runScript(xs, _))
 			}
+	}
+
+	def intersect (coords: (Int, Int), obs: ((Int, Int), (Int, Int))): Boolean = {
+		println(s"check: (${coords._1} >= ${obs._1._1} && ${coords._1} <= ${obs._2._1}) && (${coords._2} >= ${obs._1._2} && ${coords._2} <= ${obs._2._2})")
+		println(s"check: (${coords._1 >= obs._1._1} && ${coords._1 <= obs._2._1}) && (${coords._2 >= obs._1._2} && ${coords._2 <= obs._2._2})")
+		(coords._1 >= obs._1._1 && coords._1 <= obs._2._1) && (coords._2 >= obs._1._2 && coords._2 <= obs._2._2)
 	}
 
 	def initializeBoard (implicit c: Context): State = {
@@ -145,15 +152,18 @@ object Canvas extends JSApp {
 		val startx = Math.round((Math.random() * rangex) + minx).toInt
 		val starty = Math.round((Math.random() * rangey) + miny).toInt
 		val length1 = Math.round((Math.random() * 4) + 2 / 2).toInt
-		println(s"length: $length1")
-		val length = Math.min(8, length1)
-		println(s"fixed: $length")
+		val length = Math.min(4, length1)
 
-		if (rangex > rangey) {
+		val obstacle = if (rangex > rangey) {
 			((startx, Math.max(1, starty - length)), (startx, Math.min(10, starty + length)))
 		} else {
 			((Math.max(1, startx - length), starty), (Math.min(10, startx + length), starty))
 		}
+
+		if (intersect(targetCoords, obstacle) || intersect(arrowCoords, obstacle)) {
+			println(s"oops, obstacle interfered")
+			chooseObstacle(targetCoords, arrowCoords)
+		} else obstacle
 	}
 
 	def chooseArrow (targetCoords: (Int, Int)): (Int, Int) = {
@@ -161,7 +171,7 @@ object Canvas extends JSApp {
 		val startx = (Math.round(start / 10) * 70).toInt + 70
 		val starty = (Math.round(start % 10) * 70).toInt + 70
 		val startCoords = (startx / 70, starty / 70)
-		if (Math.abs(startCoords._1 - targetCoords._1) < 5 || (Math.abs(startCoords._2 - targetCoords._2) < 5)) {
+		if (Math.abs(startCoords._1 - targetCoords._1) < 4 || (Math.abs(startCoords._2 - targetCoords._2) < 4)) {
 			println(s"oops, target (${targetCoords._1}, ${targetCoords._2}) and arrow (${startCoords._1}, ${startCoords._2}) too close, rechoosing")
 			return chooseArrow(targetCoords)
 		} else return startCoords
