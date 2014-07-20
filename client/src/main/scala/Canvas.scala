@@ -14,7 +14,7 @@ import scala.util._
 
 object Canvas extends JSApp {
 
-	case class State (arrow: Image, orientation: Orientation, arrowCoords: (Int, Int), targetCoords: (Int, Int))
+	case class State (arrow: Image, orientation: Orientation, arrowCoords: (Int, Int), targetCoords: (Int, Int), obstacle: ((Int, Int), (Int, Int)))
 	case class Context (button: JQuery, textarea: JQuery, sound: Audio, c: CanvasRenderingContext2D)
 
 	def main: Unit = {
@@ -35,7 +35,7 @@ object Canvas extends JSApp {
 		def complete (state: State): Future[State] = {
 			if (state.arrowCoords == state.targetCoords) {
 				c.sound.play
-				dom.alert("You win!")
+				dom.alert("Success!")
 			} else dom.alert("Try again!")
 
 			println(s"clearing board for new game")
@@ -86,7 +86,7 @@ object Canvas extends JSApp {
 						case South => West
 						case West => North
 					}
-					val next = State(state.arrow, orientation, state.arrowCoords, state.targetCoords)
+					val next = State(state.arrow, orientation, state.arrowCoords, state.targetCoords, state.obstacle)
 					drawBoard(next)
 					delay(next).flatMap(runScript(xs, _))
 
@@ -97,7 +97,7 @@ object Canvas extends JSApp {
 						case South => East
 						case East => North
 					}
-					val next = State(state.arrow, orientation, state.arrowCoords, state.targetCoords)
+					val next = State(state.arrow, orientation, state.arrowCoords, state.targetCoords, state.obstacle)
 					drawBoard(next)
 					delay(next).flatMap(runScript(xs, _))
 
@@ -108,7 +108,7 @@ object Canvas extends JSApp {
 						case South => (state.arrowCoords._1, Math.min(state.arrowCoords._2 + 1, 10))
 						case West => (Math.max(state.arrowCoords._1 - 1, 0), state.arrowCoords._2)
 					}
-					val next = State(state.arrow, state.orientation, arrowCoords, state.targetCoords)
+					val next = State(state.arrow, state.orientation, arrowCoords, state.targetCoords, state.obstacle)
 					drawBoard(next)
 					delay(next).flatMap(runScript(xs, _))
 			}
@@ -127,11 +127,33 @@ object Canvas extends JSApp {
 		val startCoords = chooseArrow(targetCoords)
 		println(s"start x=${startCoords._1} y=${startCoords._2}")
 
+		val obstacle = chooseObstacle(targetCoords, startCoords)
+		println(s"obstacle x1=${obstacle._1._1} y1=${obstacle._1._2}, x2=${obstacle._2._1}, y2=${obstacle._2._2}")
+
 		val arrow = new Image
-		val state = State(arrow, orientation, startCoords, targetCoords)
+		val state = State(arrow, orientation, startCoords, targetCoords, obstacle)
 		arrow.src = "assets/images/arrow.png"
 		arrow.onload = () => { drawBoard(state) }
 		state
+	}
+
+	def chooseObstacle (targetCoords: (Int, Int), arrowCoords: (Int, Int)): ((Int, Int), (Int, Int)) = {
+		val minx = Math.min(targetCoords._1, arrowCoords._1)
+		val miny = Math.min(targetCoords._2, arrowCoords._2)
+		val rangex = Math.abs(targetCoords._1 - arrowCoords._1)
+		val rangey = Math.abs(targetCoords._2 - arrowCoords._2)
+		val startx = Math.round((Math.random() * rangex) + minx).toInt
+		val starty = Math.round((Math.random() * rangey) + miny).toInt
+		val length1 = Math.round((Math.random() * 4) + 2 / 2).toInt
+		println(s"length: $length1")
+		val length = Math.min(8, length1)
+		println(s"fixed: $length")
+
+		if (rangex > rangey) {
+			((startx, Math.max(1, starty - length)), (startx, Math.min(10, starty + length)))
+		} else {
+			((Math.max(1, startx - length), starty), (Math.min(10, startx + length), starty))
+		}
 	}
 
 	def chooseArrow (targetCoords: (Int, Int)): (Int, Int) = {
@@ -139,8 +161,8 @@ object Canvas extends JSApp {
 		val startx = (Math.round(start / 10) * 70).toInt + 70
 		val starty = (Math.round(start % 10) * 70).toInt + 70
 		val startCoords = (startx / 70, starty / 70)
-		if (startCoords == targetCoords) {
-			println(s"oops, target and arrow overlap, rechoosing")
+		if (Math.abs(startCoords._1 - targetCoords._1) < 5 || (Math.abs(startCoords._2 - targetCoords._2) < 5)) {
+			println(s"oops, target (${targetCoords._1}, ${targetCoords._2}) and arrow (${startCoords._1}, ${startCoords._2}) too close, rechoosing")
 			return chooseArrow(targetCoords)
 		} else return startCoords
 	}
@@ -170,6 +192,21 @@ object Canvas extends JSApp {
 		c.c.restore()
 		drawTarget(state.targetCoords._1 * 70, state.targetCoords._2 * 70)
 		drawArrow(state.arrowCoords._1 * 70, state.arrowCoords._2 * 70, state.arrow, state.orientation)
+
+
+		val begin = (state.obstacle._1._1, state.obstacle._1._2)
+		val end = (state.obstacle._2._1, state.obstacle._2._2)
+		println(s"drawing from ${begin._1 * 70}, ${begin._2 * 70}, ${(end._1 - begin._1) * 70 + 70}, ${(end._2 - begin._2) * 70 + 70}")
+		drawObstacle(begin._1 * 70, begin._2 * 70, (end._1 - begin._1) * 70 + 70, (end._2 - begin._2) * 70 + 70)
+	}
+
+	def drawObstacle (startx: Int, starty: Int, endx: Int, endy: Int)(implicit c: Context) = {
+		c.c.save()
+		c.c.beginPath()
+		c.c.fillStyle = "purple"
+		c.c.rect(startx - 20, starty - 20, endx, endy)
+		c.c.fill()
+		c.c.restore()
 	}
 
 	def drawTarget (x: Int, y: Int)(implicit c: Context) = {
