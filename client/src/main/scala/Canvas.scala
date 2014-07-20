@@ -43,7 +43,7 @@ object Canvas extends JSApp {
 			delay(state).flatMap(_ => again)
 		}
 
-		delay(state).flatMap(runScript(c.textarea.value.toString.lines.toList, _)).flatMap(complete(_))
+		delay(state).flatMap(runScript(c.textarea.value.toString.lines.toList, _)).flatMap(complete(_)) recoverWith { case _ => complete(state) }
 	}
 
 	def again (implicit c: Context): Future[State] = {
@@ -110,14 +110,17 @@ object Canvas extends JSApp {
 					}
 					val next = State(state.arrow, state.orientation, arrowCoords, state.targetCoords, state.obstacle)
 					drawBoard(next)
-					if (intersect(next.arrowCoords, next.obstacle)) delay(next).flatMap(runScript(Nil, _))
-					else delay(next).flatMap(runScript(xs, _))
+					if (intersect(next.arrowCoords, next.obstacle)) {
+						println(s"hit obstacle, stopping!")
+						failed(new Exception)
+					} else delay(next).flatMap(runScript(xs, _))
+
+				case _ =>
+					failed(new Exception)
 			}
 	}
 
 	def intersect (coords: (Int, Int), obs: ((Int, Int), (Int, Int))): Boolean = {
-		println(s"check: (${coords._1} >= ${obs._1._1} && ${coords._1} <= ${obs._2._1}) && (${coords._2} >= ${obs._1._2} && ${coords._2} <= ${obs._2._2})")
-		println(s"check: (${coords._1 >= obs._1._1} && ${coords._1 <= obs._2._1}) && (${coords._2 >= obs._1._2} && ${coords._2 <= obs._2._2})")
 		(coords._1 >= obs._1._1 && coords._1 <= obs._2._1) && (coords._2 >= obs._1._2 && coords._2 <= obs._2._2)
 	}
 
