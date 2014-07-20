@@ -5,6 +5,7 @@ import scala.scalajs.sbtplugin.ScalaJSPlugin._
 import ScalaJSKeys._
 import com.typesafe.sbt.packager.universal.UniversalKeys
 import com.typesafe.sbteclipse.core.EclipsePlugin.EclipseKeys
+import com.typesafe.sbt.SbtNativePackager._
 
 object Versions {
 	val app = "0.1.0-SNAPSHOT"
